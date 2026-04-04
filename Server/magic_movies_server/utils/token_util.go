@@ -22,7 +22,6 @@ type SignedDetails struct {
 	jwt.RegisteredClaims
 }
 
-var userCollection *mongo.Collection = database.OpenCollection("users")
 var SECRET_KEY string = os.Getenv("SECRET_KEY")
 var SECRET_REFRESH_KEY string = os.Getenv("SECRET_REFRESH_KEY")
 
@@ -64,7 +63,7 @@ func GenerateAllTokens(email string, firstName string, lastName string, role str
 	return signedToken, signedRefreshToken, nil
 }
 
-func UpdateAllTokens(signedToken string, signedRefreshToken string, userId string) (err error) {
+func UpdateAllTokens(signedToken string, signedRefreshToken string, userId string, client *mongo.Client) (err error) {
 	var ctx, cancel = context.WithTimeout(context.Background(), 100*time.Second)
 	defer cancel()
 
@@ -77,6 +76,8 @@ func UpdateAllTokens(signedToken string, signedRefreshToken string, userId strin
 			"updated_at":    updateAt,
 		},
 	}
+
+	var userCollection *mongo.Collection = database.OpenCollection("users", client)
 	_, err = userCollection.UpdateOne(ctx, bson.M{"user_id": userId}, updateData)
 	if err != nil {
 		return err
@@ -111,4 +112,28 @@ func ValidateToken(tokenString string) (claims *SignedDetails, err error) {
 		return nil, errors.New("Token has expired")
 	}
 	return claims, nil
+}
+
+func GetUserIdFromContext(c *gin.Context) (string, error) {
+	userId, exists := c.Get("user_id")
+	if !exists {
+		return "", errors.New("User ID not found in context")
+	}
+	userIdStr, ok := userId.(string)
+	if !ok {
+		return "", errors.New("User ID in context is not a string")
+	}
+	return userIdStr, nil
+}
+
+func GetRoleFromContext(c *gin.Context) (string, error) {
+	role, exists := c.Get("role")
+	if !exists {
+		return "", errors.New("Role not found in context")
+	}
+	roleStr, ok := role.(string)
+	if !ok {
+		return "", errors.New("Role in context is not a string")
+	}
+	return roleStr, nil
 }
